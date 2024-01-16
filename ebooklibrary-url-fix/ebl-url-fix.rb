@@ -7,15 +7,37 @@ mrc_path = "ebl-bibs"
 
 reader = MARC::Reader.new("#{mrc_path}.mrc")
 writer = MARC::Writer.new("#{mrc_path}-fixed.mrc")
+skipped_records = File.new("ebl-skipped.txt","w")
+
 
 fix_lookup = {}
 
+#for future reference, this is skipping the first line. I just added a throwaway line in the csv, but for future iterations fix this logic
 File.open("ebl-fix.csv") do |f|
-    f.each_line do |line|
+    for line in f
         arr = line.split(",")
-        fix_lookup[arr[0]] = arr[1]
-        puts fix_lookup
-        exit
+        fix_lookup[arr[0].strip] = arr[1].strip
     end
 end
+
+
+for record in reader
+    if fix_lookup.has_key?(record["001"].value.strip )
+        fixed_record = MARC::Record.new()
+        fixed_record.leader = record.leader
+        for field in record
+            if field.tag == '856' && field['u'].include?("EBLWeb")
+              fixed_record.append(MARC::DataField.new('856',field.indicator1, field.indicator2,
+                ['y','get it@Duke'],['u',fix_lookup[record['001'].value.strip]]))
+            else 
+                fixed_record.append(field)
+            end
+        end
+        writer.write(fixed_record)
+    else
+        puts "skipped record, #{record['001']}"
+        skipped_records.puts(record['001'].value)
+    end
+end
+
 
